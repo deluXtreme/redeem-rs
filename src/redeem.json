@@ -1,0 +1,33 @@
+[
+    {
+      "inputs": [
+        { "internalType": "address", "name": "module", "type": "address" },
+        { "internalType": "uint256", "name": "subId", "type": "uint256" },
+        { "internalType": "address[]", "name": "flowVertices", "type": "address[]" },
+        {
+          "components": [
+            { "internalType": "uint16", "name": "streamSinkId", "type": "uint16" },
+            { "internalType": "uint192", "name": "amount", "type": "uint192" }
+          ],
+          "internalType": "struct TypeDefinitions.FlowEdge[]",
+          "name": "flow",
+          "type": "tuple[]"
+        },
+        {
+          "components": [
+            { "internalType": "uint16", "name": "sourceCoordinate", "type": "uint16" },
+            { "internalType": "uint16[]", "name": "flowEdgeIds", "type": "uint16[]" },
+            { "internalType": "bytes", "name": "data", "type": "bytes" }
+          ],
+          "internalType": "struct TypeDefinitions.Stream[]",
+          "name": "streams",
+          "type": "tuple[]"
+        },
+        { "internalType": "bytes", "name": "packedCoordinates", "type": "bytes" }
+      ],
+      "name": "redeemPayment",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ]
