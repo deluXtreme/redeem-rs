@@ -2,6 +2,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use crate::flow_matrix::TransferStep;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FindPathParams {
     pub from: String,
@@ -20,19 +22,10 @@ pub struct FindPathParams {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Transfer {
-    pub from: String,
-    pub to: String,
-    #[serde(rename = "tokenOwner")]
-    pub token_owner: String,
-    pub value: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct PathfindingResult {
     #[serde(rename = "maxFlow")]
     pub max_flow: String,
-    pub transfers: Vec<Transfer>,
+    pub transfers: Vec<TransferStep>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

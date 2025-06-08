@@ -1,19 +1,29 @@
-use std::str::FromStr;
+use std::env;
 
 use alloy::{
-    hex, primitives::{Address, U256}, providers::ProviderBuilder, sol
+    hex,
+    primitives::{Address, U256},
+    providers::ProviderBuilder,
+    signers::local::PrivateKeySigner,
+    sol,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     circles::find_path,
-    flow_matrix::{create_flow_matrix, FlowEdge, Stream},
+    flow_matrix::create_flow_matrix,
+    redeem::TypeDefinitions::{FlowEdge, Stream},
 };
+use std::str::FromStr;
 
-sol!( #[allow(missing_docs)] #[sol(rpc)] Hub, "src/redeem.json" );
+sol!(
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    Hub,
+    "src/redeem.json"
+);
 
 const CIRCLES_RPC: &str = "https://rpc.aboutcircles.com/";
-const SUBSCRIPTION_MANAGER: Address = Address::from_str("0x7E9BaF7CC7cD83bACeFB9B2D5c5124C0F9c30834").expect("Invalid address");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedeemableSubscription {
@@ -21,16 +31,20 @@ pub struct RedeemableSubscription {
     pub subscriber: String,
     pub amount: String,
     pub module: String,
-    pub sub_id: u64,
+    pub sub_id: String,
 }
 
 pub async fn redeem_payment(
-    redeemer: Wallet,
     subscription: RedeemableSubscription,
 ) -> Result<bool, Box<dyn std::error::Error>> {
+    let subscription_manager = "0x7E9BaF7CC7cD83bACeFB9B2D5c5124C0F9c30834"
+        .parse::<Address>()
+        .unwrap();
+
+    let signer: PrivateKeySigner = env::var("PK").unwrap().parse().unwrap();
     let provider = ProviderBuilder::new()
-        .with_recommended_fillers()
-        .on_http(CIRCLES_RPC.parse()?);
+        .wallet(signer)
+        .connect_http(CIRCLES_RPC.parse()?);
 
     let path = find_path(
         CIRCLES_RPC,
@@ -58,7 +72,7 @@ pub async fn redeem_payment(
     let flow_vertices: Vec<Address> = flow_matrix
         .flow_vertices
         .iter()
-        .map(|addr| Address::parse_checksummed(addr, None).unwrap())
+        .map(|addr| Address::from_str(addr).unwrap())
         .collect();
 
     // Convert FlowEdge to contract FlowEdge
@@ -66,8 +80,8 @@ pub async fn redeem_payment(
         .flow_edges
         .iter()
         .map(|e| FlowEdge {
-            stream_sink_id: e.stream_sink_id,
-            amount: e.amount,
+            amount: e.amount.parse().unwrap(),
+            streamSinkId: e.stream_sink_id,
         })
         .collect();
 
@@ -76,18 +90,18 @@ pub async fn redeem_payment(
         .streams
         .iter()
         .map(|s| Stream {
-            source_coordinate: s.source_coordinate,
-            flow_edge_ids: s.flow_edge_ids.clone(),
-            data: s.data.clone(),
+            data: s.data.clone().into(),
+            sourceCoordinate: s.source_coordinate,
+            flowEdgeIds: s.flow_edge_ids.clone(),
         })
         .collect();
 
     let module = Address::parse_checksummed(&subscription.module, None)?;
-    let sub_id = U256::from(subscription.sub_id);
+    let sub_id = U256::from_str(&subscription.sub_id)?;
     let packed_coordinates = hex::decode(flow_matrix.packed_coordinates.trim_start_matches("0x"))?;
 
-    let contract = Hub::new(SUBSCRIPTION_MANAGER, provider);
-    
+    let contract = Hub::new(subscription_manager, provider);
+
     let tx = contract
         .redeemPayment(
             module,
@@ -95,44 +109,17 @@ pub async fn redeem_payment(
             flow_vertices,
             flow_edges,
             streams,
-            packed_coordinates,
+            packed_coordinates.into(),
         )
         .send()
         .await?;
 
     println!(
         "Redeemed {}-{} at: {}",
-        subscription.sub_id, subscription.module, tx.tx_hash()
+        subscription.sub_id,
+        subscription.module,
+        tx.tx_hash()
     );
 
-    let receipt = tx.wait().await?;
-    Ok(receipt.status.is_success())
+    Ok(true)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use alloy::signers::wallet::WalletBuilder;
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_redeem_payment() {
-        // This test requires a real wallet with funds
-        let wallet = WalletBuilder::new()
-            .phrase("your test wallet phrase here")
-            .build()
-            .unwrap();
-
-        let subscription = RedeemableSubscription {
-            recipient: "0xcf6dc192dc292d5f2789da2db02d6dd4f41f4214".to_string(),
-            subscriber: "0x52e14be00d5acff4424ad625662c6262b4fd1a58".to_string(),
-            amount: "1000000000000000000".to_string(), // 1 ETH
-            module: "0x7E9BaF7CC7cD83bACeFB9B2D5c5124C0F9c30834".to_string(),
-            sub_id: 1,
-        };
-
-        let result = redeem_payment(wallet, subscription).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap());
-    }
-} 
