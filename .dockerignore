@@ -1,0 +1,24 @@
+# Ignore compiled files and intermediate build artifacts
+/target
+
+# Ignore version control
+.git
+.gitignore
+.github
+
+# Ignore your local config, secrets, etc.
+.env
+*.env
+
+# Ignore IDE/editor files
+.idea
+.vscode
+*.swp
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# If using logs or data dumps
+*.log
+*.out
