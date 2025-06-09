@@ -1,7 +1,7 @@
 use std::env;
 
+use crate::redeem::TypeDefinitions::{FlowEdge, Stream};
 use alloy::{
-    hex,
     primitives::{Address, U256},
     providers::ProviderBuilder,
     signers::local::PrivateKeySigner,
@@ -9,11 +9,7 @@ use alloy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    circles::find_path,
-    flow_matrix::create_flow_matrix,
-    redeem::TypeDefinitions::{FlowEdge, Stream},
-};
+use circles_pathfinder::{FindPathParams, prepare_flow_for_contract};
 use std::str::FromStr;
 
 sol!(
@@ -46,59 +42,46 @@ pub async fn redeem_payment(
         .wallet(signer)
         .connect_http(CIRCLES_RPC.parse()?);
 
-    let path = find_path(
-        CIRCLES_RPC,
-        crate::circles::FindPathParams {
-            from: subscription.subscriber.clone(),
-            to: subscription.recipient.clone(),
-            target_flow: subscription.amount.clone(),
-            use_wrapped_balances: Some(true),
-            from_tokens: None,
-            to_tokens: None,
-            exclude_from_tokens: None,
-            exclude_to_tokens: None,
-        },
-    )
-    .await?;
+    let params = FindPathParams {
+        from: subscription.subscriber.parse::<Address>()?,
+        to: subscription.recipient.parse::<Address>()?,
+        target_flow: U256::from_str(&subscription.amount)?,
+        use_wrapped_balances: Some(true),
+        from_tokens: None,
+        to_tokens: None,
+        exclude_from_tokens: None,
+        exclude_to_tokens: None,
+    };
 
-    let flow_matrix = create_flow_matrix(
-        &subscription.subscriber,
-        &subscription.recipient,
-        &subscription.amount,
-        &path.transfers,
-    )?;
+    // This automatically:
+    // - Finds the optimal path
+    // - Creates the flow matrix
+    // - Converts to contract-compatible types
+    // - Handles flow balancing
+    let contract_matrix = prepare_flow_for_contract(CIRCLES_RPC, params).await?;
 
-    // Convert addresses to alloy::Address
-    let flow_vertices: Vec<Address> = flow_matrix
-        .flow_vertices
-        .iter()
-        .map(|addr| Address::from_str(addr).unwrap())
-        .collect();
-
-    // Convert FlowEdge to contract FlowEdge
-    let flow_edges: Vec<FlowEdge> = flow_matrix
+    // Convert our generic types to contract-specific types
+    let flow_edges: Vec<FlowEdge> = contract_matrix
         .flow_edges
-        .iter()
-        .map(|e| FlowEdge {
-            amount: e.amount.parse().unwrap(),
-            streamSinkId: e.stream_sink_id,
+        .into_iter()
+        .map(|edge| FlowEdge {
+            streamSinkId: edge.stream_sink_id,
+            amount: edge.amount.to_string().parse().unwrap(),
         })
         .collect();
 
-    // Convert Stream to contract Stream
-    let streams: Vec<Stream> = flow_matrix
+    let streams: Vec<Stream> = contract_matrix
         .streams
-        .iter()
-        .map(|s| Stream {
-            data: s.data.clone().into(),
-            sourceCoordinate: s.source_coordinate,
-            flowEdgeIds: s.flow_edge_ids.clone(),
+        .into_iter()
+        .map(|stream| Stream {
+            sourceCoordinate: stream.source_coordinate,
+            flowEdgeIds: stream.flow_edge_ids,
+            data: stream.data,
         })
         .collect();
 
     let module = Address::parse_checksummed(&subscription.module, None)?;
     let sub_id = U256::from_str(&subscription.sub_id)?;
-    let packed_coordinates = hex::decode(flow_matrix.packed_coordinates.trim_start_matches("0x"))?;
 
     let contract = Hub::new(subscription_manager, provider);
 
@@ -106,10 +89,10 @@ pub async fn redeem_payment(
         .redeemPayment(
             module,
             sub_id,
-            flow_vertices,
-            flow_edges,
-            streams,
-            packed_coordinates.into(),
+            contract_matrix.flow_vertices, // Vec<Address> works directly
+            flow_edges,                    // Contract-specific FlowEdge
+            streams,                       // Contract-specific Stream
+            contract_matrix.packed_coordinates, // Bytes works directly
         )
         .send()
         .await?;
