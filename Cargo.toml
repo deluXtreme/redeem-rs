@@ -6,7 +6,10 @@ edition = "2024"
 [dependencies]
 alloy = "1.0.9"
 anyhow = "1.0.98"
-reqwest = { version = "0.12.19", default-features = false, features = ["rustls-tls"] }
+circles-pathfinder = "0.1.0"
+reqwest = { version = "0.12.19", default-features = false, features = [
+    "rustls-tls",
+] }
 serde = "1.0.219"
 serde_json = "1.0.140"
 tokio = { version = "1.45.1", features = ["macros", "rt-multi-thread"] }
