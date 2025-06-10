@@ -1,4 +1,3 @@
-//mod circles;
 mod fetch;
 mod redeem;
 
