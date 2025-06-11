@@ -2,7 +2,7 @@ use std::env;
 
 use crate::redeem::TypeDefinitions::{FlowEdge, Stream};
 use alloy::{
-    primitives::{Address, U256},
+    primitives::{Address, U256, aliases::U192},
     providers::ProviderBuilder,
     signers::local::PrivateKeySigner,
     sol,
@@ -45,7 +45,7 @@ pub async fn redeem_payment(
     let params = FindPathParams {
         from: subscription.subscriber.parse::<Address>()?,
         to: subscription.recipient.parse::<Address>()?,
-        target_flow: U256::from_str(&subscription.amount)?,
+        target_flow: U192::from_str(&subscription.amount)?,
         use_wrapped_balances: Some(true),
         from_tokens: None,
         to_tokens: None,
@@ -58,24 +58,26 @@ pub async fn redeem_payment(
     // - Creates the flow matrix
     // - Converts to contract-compatible types
     // - Handles flow balancing
-    let contract_matrix = prepare_flow_for_contract(CIRCLES_RPC, params).await?;
+    let path_data = prepare_flow_for_contract(CIRCLES_RPC, params).await?;
 
-    // Convert our generic types to contract-specific types
-    let flow_edges: Vec<FlowEdge> = contract_matrix
-        .flow_edges
+    // Convert pathfinder types to contract-specific types
+    // Types are exactly the same but because they live in different modules
+    // Rust treats them as different. Still have to do the conversion :(
+    let contract_flow_edges: Vec<FlowEdge> = path_data
+        .to_flow_edges()
         .into_iter()
         .map(|edge| FlowEdge {
-            streamSinkId: edge.stream_sink_id,
-            amount: edge.amount.to_string().parse().unwrap(),
+            streamSinkId: edge.streamSinkId,
+            amount: edge.amount,
         })
         .collect();
 
-    let streams: Vec<Stream> = contract_matrix
-        .streams
+    let contract_streams = path_data
+        .to_streams()
         .into_iter()
         .map(|stream| Stream {
-            sourceCoordinate: stream.source_coordinate,
-            flowEdgeIds: stream.flow_edge_ids,
+            sourceCoordinate: stream.sourceCoordinate,
+            flowEdgeIds: stream.flowEdgeIds,
             data: stream.data,
         })
         .collect();
@@ -89,10 +91,10 @@ pub async fn redeem_payment(
         .redeemPayment(
             module,
             sub_id,
-            contract_matrix.flow_vertices, // Vec<Address> works directly
-            flow_edges,                    // Contract-specific FlowEdge
-            streams,                       // Contract-specific Stream
-            contract_matrix.packed_coordinates, // Bytes works directly
+            path_data.clone().flow_vertices,
+            contract_flow_edges,
+            contract_streams,
+            path_data.to_packed_coordinates(),
         )
         .send()
         .await?;

@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 alloy = "1.0.9"
 anyhow = "1.0.98"
-circles-pathfinder = "0.1.0"
+circles-pathfinder = "0.3.0"
 reqwest = { version = "0.12.19", default-features = false, features = [
     "rustls-tls",
 ] }
