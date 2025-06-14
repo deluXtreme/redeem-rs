@@ -1,8 +1,7 @@
 [
     {
       "inputs": [
-        { "internalType": "address", "name": "module", "type": "address" },
-        { "internalType": "uint256", "name": "subId", "type": "uint256" },
+        { "internalType": "bytes32", "name": "subId", "type": "bytes32" },
         { "internalType": "address[]", "name": "flowVertices", "type": "address[]" },
         {
           "components": [
@@ -25,9 +24,22 @@
         },
         { "internalType": "bytes", "name": "packedCoordinates", "type": "bytes" }
       ],
-      "name": "redeemPayment",
+      "name": "redeem",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+    {
+      "type": "function",
+      "name": "redeemUntrusted",
+      "inputs": [
+        {
+          "name": "id",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
     }
-  ]
+]
