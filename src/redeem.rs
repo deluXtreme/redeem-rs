@@ -1,5 +1,3 @@
-use std::env;
-
 use crate::redeem::TypeDefinitions::{FlowEdge, Stream};
 use alloy::{
     primitives::{Address, U256, aliases::U192},
@@ -31,13 +29,13 @@ pub struct RedeemableSubscription {
 }
 
 pub async fn redeem_payment(
+    signer: PrivateKeySigner,
     subscription: RedeemableSubscription,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let subscription_manager = "0x7E9BaF7CC7cD83bACeFB9B2D5c5124C0F9c30834"
         .parse::<Address>()
         .unwrap();
 
-    let signer: PrivateKeySigner = env::var("PK").unwrap().parse().unwrap();
     let provider = ProviderBuilder::new()
         .wallet(signer)
         .connect_http(CIRCLES_RPC.parse()?);
@@ -82,7 +80,7 @@ pub async fn redeem_payment(
         })
         .collect();
 
-    let module = Address::parse_checksummed(&subscription.module, None)?;
+    let module = subscription.module.parse::<Address>()?;
     let sub_id = U256::from_str(&subscription.sub_id)?;
 
     let contract = Hub::new(subscription_manager, provider);
