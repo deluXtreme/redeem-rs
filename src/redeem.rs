@@ -32,9 +32,7 @@ pub async fn redeem_payment(
     signer: PrivateKeySigner,
     subscription: RedeemableSubscription,
 ) -> Result<bool, Box<dyn std::error::Error>> {
-    let subscription_manager = "0x7E9BaF7CC7cD83bACeFB9B2D5c5124C0F9c30834"
-        .parse::<Address>()
-        .unwrap();
+    let subscription_manager = "0x7E9BaF7CC7cD83bACeFB9B2D5c5124C0F9c30834".parse::<Address>()?;
 
     let provider = ProviderBuilder::new()
         .wallet(signer)
