@@ -1,5 +1,3 @@
-use std::env;
-
 use alloy::{
     primitives::{Address, Bytes, U256, aliases::U192},
     providers::ProviderBuilder,
@@ -54,7 +52,9 @@ pub async fn redeem_payment(
     signer: PrivateKeySigner,
     subscription: RedeemableSubscription,
 ) -> Result<bool, Box<dyn std::error::Error>> {
-    let subscription_module = "0xD5dC464dD561782615D7495d1d7CEd301083c750 ADDRESS".parse::<Address>().unwrap();
+    let subscription_module = "0xD5dC464dD561782615D7495d1d7CEd301083c750"
+        .parse::<Address>()
+        .unwrap();
 
     let provider = ProviderBuilder::new()
         .wallet(signer)
