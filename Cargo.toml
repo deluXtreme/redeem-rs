@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-alloy = "1.0.9"
+alloy = "1.0.17"
 anyhow = "1.0.98"
 circles-pathfinder = "0.3.0"
 dotenv = "0.15.0"

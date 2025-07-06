@@ -1,13 +1,14 @@
-use crate::redeem::TypeDefinitions::{FlowEdge, Stream};
+use std::env;
+
 use alloy::{
-    primitives::{Address, U256, aliases::U192},
+    primitives::{Address, Bytes, U256, aliases::U192},
     providers::ProviderBuilder,
     signers::local::PrivateKeySigner,
     sol,
 };
 use serde::{Deserialize, Serialize};
 
-use circles_pathfinder::{FindPathParams, prepare_flow_for_contract};
+use circles_pathfinder::{FindPathParams, PathData, prepare_flow_for_contract};
 use std::str::FromStr;
 
 sol!(
@@ -17,7 +18,28 @@ sol!(
     "src/redeem.json"
 );
 
+sol! {
+    struct FlowEdge {
+        uint16 streamSinkId;
+        uint192 amount;
+    }
+
+    struct Stream {
+        uint16 sourceCoordinate;
+        uint16[] flowEdgeIds;
+        bytes data;
+    }
+}
+
 const CIRCLES_RPC: &str = "https://rpc.aboutcircles.com/";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Category {
+    Trusted,
+    Untrusted,
+    Group,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedeemableSubscription {
@@ -25,7 +47,7 @@ pub struct RedeemableSubscription {
     pub recipient: String,
     pub subscriber: String,
     pub amount: String,
-    pub trusted: bool,
+    pub category: Category,
 }
 
 pub async fn redeem_payment(
@@ -40,8 +62,8 @@ pub async fn redeem_payment(
     let contract = SubscriptionModule::new(subscription_module, provider);
     let id = U256::from_str(&subscription.id)?;
     let tx;
-    if !subscription.trusted {
-        tx = contract.redeemUntrusted(id.into()).send().await?;
+    if subscription.category != Category::Trusted {
+        tx = contract.redeem(id.into(), vec![].into()).send().await?;
     } else {
         let params = FindPathParams {
             from: subscription.subscriber.parse::<Address>()?,
@@ -61,36 +83,8 @@ pub async fn redeem_payment(
         // - Handles flow balancing
         let path_data = prepare_flow_for_contract(CIRCLES_RPC, params).await?;
 
-        // Convert pathfinder types to contract-specific types
-        // Types are exactly the same but because they live in different modules
-        // Rust treats them as different. Still have to do the conversion :(
-        let contract_flow_edges: Vec<FlowEdge> = path_data
-            .to_flow_edges()
-            .into_iter()
-            .map(|edge| FlowEdge {
-                streamSinkId: edge.streamSinkId,
-                amount: edge.amount,
-            })
-            .collect();
-
-        let contract_streams = path_data
-            .to_streams()
-            .into_iter()
-            .map(|stream| Stream {
-                sourceCoordinate: stream.sourceCoordinate,
-                flowEdgeIds: stream.flowEdgeIds,
-                data: stream.data,
-            })
-            .collect();
-
         tx = contract
-            .redeem(
-                id.into(),
-                path_data.clone().flow_vertices,
-                contract_flow_edges,
-                contract_streams,
-                path_data.to_packed_coordinates(),
-            )
+            .redeem(id.into(), encode_path_data(path_data))
             .send()
             .await?;
     }
@@ -98,4 +92,40 @@ pub async fn redeem_payment(
     println!("Redeemed {} at: {}", subscription.id, tx.tx_hash());
 
     Ok(true)
+}
+
+// TODO: Once this works, it can be moved into the circles crate.
+fn encode_path_data(data: PathData) -> Bytes {
+    let flow_edges: Vec<FlowEdge> = data
+        .flow_edges
+        .into_iter()
+        .map(|(stream_sink_id, amount)| FlowEdge {
+            streamSinkId: stream_sink_id,
+            amount,
+        })
+        .collect();
+
+    let streams: Vec<Stream> = data
+        .streams
+        .into_iter()
+        .map(|(source_coord, edge_ids, bytes)| Stream {
+            sourceCoordinate: source_coord,
+            flowEdgeIds: edge_ids,
+            data: bytes.into(),
+        })
+        .collect();
+
+    // Encode the inner `data` tuple
+    let _inner_payload: (Vec<Address>, Vec<FlowEdge>, Vec<Stream>, Vec<u8>, U256) = (
+        data.flow_vertices,
+        flow_edges,
+        streams,
+        data.packed_coordinates,
+        U256::from(data.source_coordinate),
+    );
+    // TODO: This shit doesn't work.
+    // let encoded_data =
+    //     <(Vec<Address>, Vec<FlowEdge>, Vec<Stream>, Vec<u8>, U256)>::abi_encode(&inner_payload);
+    // encoded_data.into()
+    Bytes::new()
 }
