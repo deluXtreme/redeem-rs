@@ -52,7 +52,7 @@ pub async fn redeem_payment(
     signer: PrivateKeySigner,
     subscription: RedeemableSubscription,
 ) -> Result<bool, Box<dyn std::error::Error>> {
-    let subscription_module = "0xD5dC464dD561782615D7495d1d7CEd301083c750"
+    let subscription_module = "0x48BC28f8757cF5dc38eE7219DFf1c1F2b768737D"
         .parse::<Address>()
         .unwrap();
 
