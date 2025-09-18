@@ -61,7 +61,7 @@ pub async fn redeem_payment(
             from: subscription.subscriber.parse::<Address>()?,
             to: subscription.recipient.parse::<Address>()?,
             target_flow: amount * periods,
-            use_wrapped_balances: Some(true),
+            use_wrapped_balances: Some(false),
             from_tokens: None,
             to_tokens: None,
             exclude_from_tokens: None,
