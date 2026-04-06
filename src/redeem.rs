@@ -43,13 +43,12 @@ pub struct RedeemableSubscription {
 pub async fn redeem_payment(
     signer: PrivateKeySigner,
     subscription: RedeemableSubscription,
-) -> Result<bool, Box<dyn std::error::Error>> {
+) -> Result<B256, Box<dyn std::error::Error>> {
     let provider = ProviderBuilder::new()
         .wallet(signer)
         .connect_http(GNOSIS_RPC.parse()?);
     let contract = SubscriptionModule::new(subscription.contract_address, provider);
     let tx;
-    tracing::info!("Redeeming {:#?}", subscription);
     if subscription.category != Category::Trusted {
         tx = contract
             .redeem(subscription.id, vec![].into())
@@ -88,13 +87,7 @@ pub async fn redeem_payment(
         tx = contract.redeem(subscription.id, data.into()).send().await?;
     }
 
-    tracing::info!(
-        "Redeemed {} at: https://gnosisscan.io/tx/{}",
-        subscription.id,
-        tx.tx_hash()
-    );
-
-    Ok(true)
+    Ok(*tx.tx_hash())
 }
 
 #[cfg(test)]

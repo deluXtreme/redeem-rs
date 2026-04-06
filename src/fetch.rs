@@ -1,12 +1,8 @@
 use crate::redeem::RedeemableSubscription;
 use anyhow::{Context, Result};
-use reqwest::Client;
-use std::env;
+use reqwest::{Client, Url};
 
-pub async fn fetch_redeemable_subscriptions() -> Result<Vec<RedeemableSubscription>> {
-    let api_url =
-        env::var("API_URL").unwrap_or_else(|_| "http://localhost:3030/redeemable".to_string());
-
+pub async fn fetch_redeemable_subscriptions(api_url: Url) -> Result<Vec<RedeemableSubscription>> {
     let client = Client::new();
 
     let response = client
