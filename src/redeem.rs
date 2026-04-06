@@ -1,5 +1,5 @@
 use alloy::{
-    primitives::{Address, U256, aliases::U192},
+    primitives::{Address, U256},
     providers::ProviderBuilder,
     signers::local::PrivateKeySigner,
     sol,
@@ -12,8 +12,9 @@ use std::str::FromStr;
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
-    SubscriptionModule,
-    "src/redeem.json"
+    contract SubscriptionModule {
+        function redeem(bytes32 id, bytes calldata data) external;
+    }
 );
 
 const GNOSIS_RPC: &str = "https://rpc.gnosischain.com/";
@@ -41,9 +42,7 @@ pub async fn redeem_payment(
     signer: PrivateKeySigner,
     subscription: RedeemableSubscription,
 ) -> Result<bool, Box<dyn std::error::Error>> {
-    let subscription_module = "0xcEbE4B6d50Ce877A9689ce4516Fe96911e099A78"
-        .parse::<Address>()
-        .unwrap();
+    let subscription_module = "0xcEbE4B6d50Ce877A9689ce4516Fe96911e099A78".parse()?;
 
     let provider = ProviderBuilder::new()
         .wallet(signer)
@@ -55,8 +54,8 @@ pub async fn redeem_payment(
     if subscription.category != Category::Trusted {
         tx = contract.redeem(id.into(), vec![].into()).send().await?;
     } else {
-        let amount = U192::from_str(&subscription.amount)?;
-        let periods = U192::from(subscription.periods as u64);
+        let amount = U256::from_str(&subscription.amount)?;
+        let periods = U256::from(subscription.periods as u64);
         let params = FindPathParams {
             from: subscription.subscriber.parse::<Address>()?,
             to: subscription.recipient.parse::<Address>()?,
@@ -66,6 +65,9 @@ pub async fn redeem_payment(
             to_tokens: None,
             exclude_from_tokens: None,
             exclude_to_tokens: None,
+            simulated_balances: None,
+            simulated_trusts: None,
+            max_transfers: None,
         };
 
         // This automatically:
